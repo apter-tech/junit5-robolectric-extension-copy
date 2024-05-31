@@ -43,20 +43,7 @@ jobs:
           JUNIT5_ROBOLECTRIC_EXTENSION_GPG_SIGNING_PASSWORD: '${{ secrets.JUNIT5_ROBOLECTRIC_EXTENSION_GPG_SIGNING_PASSWORD }}'
       - name: Build with Gradle Wrapper
         run: |
-          ./gradlew build koverXmlReport publish
-        env:
-          JUNIT5_ROBOLECTRIC_EXTENSION_MAVEN_USERNAME: '${{ secrets.JUNIT5_ROBOLECTRIC_EXTENSION_MAVEN_USERNAME }}'
-          JUNIT5_ROBOLECTRIC_EXTENSION_MAVEN_PASSWORD: '${{ secrets.JUNIT5_ROBOLECTRIC_EXTENSION_MAVEN_PASSWORD }}'
-          JUNIT5_ROBOLECTRIC_EXTENSION_GPG_SIGNING_KEY: '${{ secrets.JUNIT5_ROBOLECTRIC_EXTENSION_GPG_SIGNING_KEY }}'
-          JUNIT5_ROBOLECTRIC_EXTENSION_GPG_SIGNING_PASSWORD: '${{ secrets.JUNIT5_ROBOLECTRIC_EXTENSION_GPG_SIGNING_PASSWORD }}'
-      - name: Publish Gradle Plugin
-        run: |
-          ./publishGradlePlugin.sh
-        env:
-          JUNIT5_ROBOLECTRIC_EXTENSION_GRADLE_PLUGIN_PORTAL_KEY: '${{ secrets.JUNIT5_ROBOLECTRIC_EXTENSION_GRADLE_PLUGIN_PORTAL_KEY }}'
-          JUNIT5_ROBOLECTRIC_EXTENSION_GRADLE_PLUGIN_PORTAL_SECRET: '${{ secrets.JUNIT5_ROBOLECTRIC_EXTENSION_GRADLE_PLUGIN_PORTAL_SECRET }}'
-          JUNIT5_ROBOLECTRIC_EXTENSION_GPG_SIGNING_KEY: '${{ secrets.JUNIT5_ROBOLECTRIC_EXTENSION_GPG_SIGNING_KEY }}'
-          JUNIT5_ROBOLECTRIC_EXTENSION_GPG_SIGNING_PASSWORD: '${{ secrets.JUNIT5_ROBOLECTRIC_EXTENSION_GPG_SIGNING_PASSWORD }}'
+          ./gradlew build koverXmlReport
       - name: Upload coverage report
         uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
         if: ${{ hashFiles('build/reports/kover/report.xml') != '' }}
@@ -72,18 +59,28 @@ jobs:
       - build
     if: github.ref_name == github.event.repository.default_branch && github.event_name == 'workflow_dispatch' && github.event.inputs.releaseVersion != '' && !endsWith(github.event.inputs.releaseVersion, 'SNAPSHOT')
     steps:
+      - uses: actions/create-github-app-token@a0de6af83968303c8c955486bf9739a57d23c7f1 # v1.10.0
+        id: app-token
+        with:
+          app-id: ${{ secrets.RELEASE_BEAST_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BEAST_PRIVATE_KEY }}
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
         with:
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 0
           ref: ${{ github.head_ref }}
+          persist-credentials: false
       - name: Create release
         shell: bash
         run: |
           git config --global user.name "${GIT_USER_NAME}"
           git config --global user.email "${GIT_USER_EMAIL}"
+          git remote set-url origin "https://${GIT_USERNAME}:${GITHUB_APP_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           ./tagRelease.sh "${RELEASE_VERSION}"
         env:
-          GIT_USER_NAME: ${{ github.actor }}
-          GIT_USER_EMAIL: ${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com
+          GIT_USER_NAME: ${{ secrets.RELEASE_BEAST_USER_NAME }}
+          GIT_USER_EMAIL: ${{ secrets.RELEASE_BEAST_USER_ID }}+${{ secrets.RELEASE_BEAST_USERNAME }}@users.noreply.github.com
+          GITHUB_APP_TOKEN: ${{ steps.app-token.outputs.token }}
           RELEASE_VERSION: ${{ github.event.inputs.releaseVersion }}
   kover:
     runs-on: ubuntu-22.04
